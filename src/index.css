@@ -1,0 +1,34 @@
+:root {
+  --bg: #080b11;
+  --panel: #111826;
+  --panel-2: #0c121d;
+  --line: #1e2838;
+  --text: #e7eef6;
+  --muted: #8595a8;
+  --accent: #4cc2ff;
+  --ok: #36d399;
+  --danger: #ff4d4d;
+
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+#root {
+  height: 100%;
+}
