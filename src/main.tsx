@@ -1,10 +1,25 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
-import App from './App.tsx'
+import { AuraProvider } from './AuraContext'
+import Layout from './components/Layout'
+import Home from './pages/Home'
+import LiveMonitor from './pages/LiveMonitor'
+import AutoCare from './pages/AutoCare'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <AuraProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route path="/" element={<Home />} />
+            <Route path="/monitor" element={<LiveMonitor />} />
+            <Route path="/autocare" element={<AutoCare />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </AuraProvider>
   </StrictMode>,
 )
