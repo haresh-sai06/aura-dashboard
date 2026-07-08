@@ -44,11 +44,36 @@ export type LiveState = {
 
 export type AuraEvent = { time: string; type: string; detail: string };
 
+/** Live vehicle state streamed from the Unity car (vehicle.telemetry). */
+export type Telemetry = {
+  speedKmh: number;
+  throttle?: number;
+  steer?: number;
+  autonomous?: boolean;
+  pullingOver?: boolean;
+  scenario?: string;
+  wpIndex?: number;
+  wpTotal?: number;
+};
+
+/** The personalized "why did Aura act for ME?" payload (explain). */
+export type ExplainFactor = { name: string; value: number };
+export type Explain = {
+  driver?: string;
+  decision: string;
+  personalThreshold?: number;
+  genericThreshold?: number;
+  modality?: string;
+  factors?: ExplainFactor[];
+};
+
 type AuraValue = {
   connected: boolean;
   driver: Driver | null;
   alert: SafetyAlert | null;
   live: LiveState | null;
+  telemetry: Telemetry | null;
+  explain: Explain | null;
   events: AuraEvent[];
 };
 
@@ -57,6 +82,8 @@ const AuraCtx = createContext<AuraValue>({
   driver: null,
   alert: null,
   live: null,
+  telemetry: null,
+  explain: null,
   events: [],
 });
 
@@ -70,6 +97,8 @@ export function AuraProvider({ children }: { children: ReactNode }) {
   const [driver, setDriver] = useState<Driver | null>(null);
   const [alert, setAlert] = useState<SafetyAlert | null>(null);
   const [live, setLive] = useState<LiveState | null>(null);
+  const [telemetry, setTelemetry] = useState<Telemetry | null>(null);
+  const [explain, setExplain] = useState<Explain | null>(null);
   const [events, setEvents] = useState<AuraEvent[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -117,6 +146,12 @@ export function AuraProvider({ children }: { children: ReactNode }) {
         case "driver.state":
           setLive(msg.payload as unknown as LiveState);
           break;
+        case "vehicle.telemetry":
+          setTelemetry(msg.payload as unknown as Telemetry);
+          break;
+        case "explain":
+          setExplain(msg.payload as unknown as Explain);
+          break;
         case "safety.alert": {
           const a = msg.payload as unknown as SafetyAlert;
           setAlert(a);
@@ -140,7 +175,7 @@ export function AuraProvider({ children }: { children: ReactNode }) {
   }, [connect]);
 
   return (
-    <AuraCtx.Provider value={{ connected, driver, alert, live, events }}>
+    <AuraCtx.Provider value={{ connected, driver, alert, live, telemetry, explain, events }}>
       {children}
     </AuraCtx.Provider>
   );

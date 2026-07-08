@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useAura } from '../AuraContext';
 import Sparkline from '../components/Sparkline';
-import WebcamMonitor from '../components/WebcamMonitor';
+import DriverSelector from '../components/DriverSelector';
 import { Activity, ShieldAlert, Car, Cpu, Brain } from 'lucide-react';
 
 const card: CSSProperties = { background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 };
@@ -24,8 +24,28 @@ function Metric({ name, value, alert }: { name: string; value: string; alert?: b
   );
 }
 
+// A 0–100 track showing the live drowsiness score (fill) against a threshold marker.
+// Two of these side by side make the personal-vs-generic differentiator obvious.
+function ThresholdBar({ labelText, value, score, color }: { labelText: string; value: number; score: number; color: string }) {
+  const pct = Math.max(0, Math.min(100, value));
+  const sc = Math.max(0, Math.min(100, score));
+  const fires = sc >= value;
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+        <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{labelText}</span>
+        <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color }}>{Math.round(value)}</span>
+      </div>
+      <div style={{ position: 'relative', height: 8, background: 'var(--bg-tertiary)', borderRadius: 4 }}>
+        <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: `${sc}%`, background: fires ? 'var(--danger)' : 'var(--success)', borderRadius: 4, transition: 'width 0.2s' }} />
+        <div style={{ position: 'absolute', top: -2, bottom: -2, left: `${pct}%`, width: 2, background: color, transform: 'translateX(-1px)' }} title={`threshold ${Math.round(value)}`} />
+      </div>
+    </div>
+  );
+}
+
 export default function LiveMonitor() {
-  const { connected, live, alert, driver, events } = useAura();
+  const { connected, live, alert, driver, events, telemetry, explain } = useAura();
   const [scoreHist, setScoreHist] = useState<number[]>([]);
   const lastTick = useRef(0);
 
@@ -39,9 +59,12 @@ export default function LiveMonitor() {
 
   const score = live?.score ?? 0;
   const lvl = scoreLevel(score);
-  const pullingOver = alert?.action === 'pull_over';
-  const vehicleSpeed = pullingOver ? 0 : 64;
+  const hasTele = !!telemetry;
+  const pullingOver = alert?.action === 'pull_over' || !!telemetry?.pullingOver;
+  const vehicleSpeed = hasTele ? Math.round(telemetry!.speedKmh) : pullingOver ? 0 : 64;
   const factors = live?.factors ?? [];
+  const faceOn = !!live?.facePresent;
+  const earAlert = (live?.ear ?? 1) < 0.22;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, height: '100%' }}>
@@ -54,20 +77,40 @@ export default function LiveMonitor() {
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: connected ? 'var(--success)' : 'var(--text-tertiary)' }} />
               {connected ? 'Edge brain' : 'Offline'}
             </span>
-            <span style={{ ...label, display: 'flex', alignItems: 'center', gap: 6 }}><Cpu size={12} /> On-device · 7-signal fusion</span>
+            <span style={{ ...label, display: 'flex', alignItems: 'center', gap: 6 }}><Cpu size={12} /> On-device CV · separate Python process</span>
           </div>
         </div>
-        <span style={{ fontSize: 11, color: 'var(--danger)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}><Activity size={13} /> LIVE</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <DriverSelector compact />
+          <span style={{ fontSize: 11, color: 'var(--danger)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}><Activity size={13} /> LIVE</span>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '54% 1fr', gap: 16, flex: 1, minHeight: 0 }}>
-        {/* Left: camera */}
+        {/* Left: external Python CV process (camera runs off the browser UI thread) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0 }}>
-          <div style={{ flex: 1, minHeight: 0, borderLeft: pullingOver ? '3px solid var(--danger)' : '3px solid var(--accent)', borderRadius: 8, overflow: 'hidden' }}>
-            <WebcamMonitor />
+          <div style={{ flex: 1, minHeight: 0, borderLeft: pullingOver ? '3px solid var(--danger)' : '3px solid var(--accent)', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 }}>
+            <span style={{ ...label, display: 'flex', alignItems: 'center', gap: 8 }}><Cpu size={16} /> On-device CV · separate process</span>
+            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: 1, color: faceOn ? 'var(--success)' : 'var(--text-tertiary)' }}>
+              {faceOn ? 'FACE DETECTED' : 'NO FACE'}
+            </div>
+            <div style={{ display: 'flex', gap: 26 }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 24, fontWeight: 700, fontFamily: 'var(--font-mono)', color: earAlert ? 'var(--danger)' : 'var(--text-primary)' }}>{live?.ear != null ? live.ear.toFixed(3) : '--'}</div>
+                <div style={label}>EAR</div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 24, fontWeight: 700, fontFamily: 'var(--font-mono)', color: (live?.eyeClosureS ?? 0) > 0 ? 'var(--warning)' : 'var(--text-primary)' }}>{live?.eyeClosureS != null ? `${live.eyeClosureS.toFixed(1)}s` : '--'}</div>
+                <div style={label}>eyes closed</div>
+              </div>
+            </div>
+            <span style={{ ...label, color: (connected && live) ? 'var(--success)' : 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: (connected && live) ? 'var(--success)' : 'var(--text-tertiary)' }} />
+              {live ? 'Camera streaming' : 'Waiting for camera_monitor.py…'}
+            </span>
           </div>
           <p style={{ ...label, textTransform: 'none', textAlign: 'center' }}>
-            Camera + MediaPipe run in-browser (no cloud) → 7-signal fusion → Aura Core → the Unity car.
+            OpenCV + MediaPipe run in a separate Python process (camera_monitor.py) — true edge, off the UI thread → Aura Core → the Unity car.
           </p>
         </div>
 
@@ -95,7 +138,7 @@ export default function LiveMonitor() {
             <span style={label}>Risk Factors (weighted fusion)</span>
             <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 7 }}>
               {factors.length === 0 ? (
-                <span style={{ ...label, textTransform: 'none' }}>Waiting for camera…</span>
+                <span style={{ ...label, textTransform: 'none' }}>EAR-based signal from the Python camera — no per-factor fusion.</span>
               ) : (
                 factors.map((f) => (
                   <div key={f.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -129,14 +172,35 @@ export default function LiveMonitor() {
             {alert && <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 0' }}>{alert.reason}</p>}
           </div>
 
+          {/* Why Aura acts — personalized explainability (the differentiator, made visible) */}
+          {explain && (
+            <div style={card}>
+              <span style={{ ...label, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Brain size={12} /> Why Aura acts {driver ? `· ${driver.name}` : ''}
+              </span>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '8px 0 10px', lineHeight: 1.5 }}>{explain.decision}</p>
+              <ThresholdBar labelText="Your adaptive threshold" value={explain.personalThreshold ?? 0} score={score} color="var(--accent)" />
+              <ThresholdBar labelText="Generic fixed threshold" value={explain.genericThreshold ?? 50} score={score} color="var(--text-tertiary)" />
+            </div>
+          )}
+
           {/* Vehicle response */}
           <div style={card}>
-            <span style={{ ...label, display: 'flex', alignItems: 'center', gap: 6 }}><Car size={12} /> Vehicle response (Unity car)</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ ...label, display: 'flex', alignItems: 'center', gap: 6 }}><Car size={12} /> Vehicle response (Unity car)</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: hasTele ? 'var(--success)' : 'var(--text-tertiary)' }}>{hasTele ? '● LIVE LINK' : '○ SIM'}</span>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginTop: 10 }}>
               <div><div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', color: vehicleSpeed === 0 ? 'var(--danger)' : 'var(--text-primary)' }}>{vehicleSpeed}</div><div style={label}>km/h</div></div>
-              <div><div style={{ fontSize: 12, fontWeight: 600, color: pullingOver ? 'var(--danger)' : 'var(--success)' }}>{pullingOver ? 'PULLING OVER' : 'CRUISING'}</div><div style={label}>status</div></div>
+              <div><div style={{ fontSize: 12, fontWeight: 600, color: pullingOver ? 'var(--danger)' : 'var(--success)' }}>{pullingOver ? 'PULLING OVER' : hasTele ? 'AUTONOMOUS' : 'CRUISING'}</div><div style={label}>status</div></div>
               <div><div style={{ fontSize: 12, fontWeight: 600, color: pullingOver ? 'var(--danger)' : 'var(--text-tertiary)' }}>{pullingOver ? 'FLASHING' : 'OFF'}</div><div style={label}>hazards</div></div>
             </div>
+            {hasTele && (
+              <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-tertiary)', display: 'flex', justifyContent: 'space-between' }}>
+                <span>{telemetry!.scenario ?? 'Scenario'}</span>
+                <span>steer {Math.round(telemetry!.steer ?? 0)}° · throttle {Math.round((telemetry!.throttle ?? 0) * 100)}%</span>
+              </div>
+            )}
           </div>
 
           {/* Event log */}

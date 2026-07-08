@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useOS, TRACKS, DESTINATIONS, type AppId } from './OSContext';
 import { useAura } from '../AuraContext';
+import DriverSelector from '../components/DriverSelector';
 
 export const APP_META: { id: AppId; name: string; icon: typeof Music; accent: string }[] = [
   { id: 'music', name: 'Music', icon: Music, accent: '#3b82f6' },
@@ -191,6 +192,12 @@ function SettingsApp() {
           <div style={{ ...label, textTransform: 'none' }}>Edge driver-persona system · private, offline</div>
         </div>
       </div>
+
+      <div style={{ ...card, padding: 18 }}>
+        <p style={{ ...label, marginBottom: 12 }}>Driver profile · each carries their own adaptive safety baseline</p>
+        <DriverSelector />
+      </div>
+
       {rows.map((r) => (
         <div key={r.k} style={{ ...card, padding: '14px 18px', display: 'flex', justifyContent: 'space-between', gap: 12 }}>
           <span style={{ color: 'var(--text-tertiary)' }}>{r.k}</span>

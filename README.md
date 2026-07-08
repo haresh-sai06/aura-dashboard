@@ -29,10 +29,14 @@ python tools/send_test_event.py resume      # dashboard clears
 The same events also drive the Unity game — one Core event updates both at once.
 
 ## Where things live
-- [`src/useAuraSocket.ts`](src/useAuraSocket.ts) — the WebSocket hook (connection + parsing + state).
-  The message types must stay in sync with `aura-core/aura_core/messages.py`.
-- [`src/App.tsx`](src/App.tsx) — the HMI layout.
-- [`src/App.css`](src/App.css) — styling.
+- [`src/AuraContext.tsx`](src/AuraContext.tsx) — the shared WebSocket provider (connection +
+  parsing + `driver` / `alert` / `live` / `telemetry` / `explain` state). Message types must
+  stay in sync with `aura-core/aura_core/messages.py`.
+- [`src/main.tsx`](src/main.tsx) — routes: Home, Live Monitor, AutoCare AI.
+- [`src/pages/`](src/pages) — `Home` (Aura OS), `LiveMonitor` (camera + fusion + explainability),
+  `AutoCare` (SAE J3016 escalation engine).
+- [`src/components/DriverSelector.tsx`](src/components/DriverSelector.tsx) — live persona switcher.
+- [`src/index.css`](src/index.css) — theme tokens + global styling.
 
 ## Next
 - Add a live telemetry panel (speed/position) once Unity streams `vehicle.telemetry`.
