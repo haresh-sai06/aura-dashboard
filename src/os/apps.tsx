@@ -1,13 +1,14 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
   Music, Navigation, Thermometer, Phone, Settings as SettingsIcon,
   Play, Pause, SkipForward, SkipBack, Volume2, Plus, Minus, Wind, Snowflake,
-  PhoneCall, User, ShieldCheck,
+  PhoneCall, User, ShieldCheck, Search,
 } from 'lucide-react';
 import { useOS, TRACKS, DESTINATIONS, type AppId } from './OSContext';
 import { useAura } from '../AuraContext';
 import DriverSelector from '../components/DriverSelector';
 import { glass } from '../ui';
+import { searchVideo, loadYouTubeApi, getYT, youtubeKeyPresent, type YTPlayer } from '../utils/youtube';
 import { CORE_HTTP } from '../config';
 
 // Real place strings so Google Maps can draw an actual route for each demo destination.
@@ -71,13 +72,80 @@ function MusicApp() {
   const { music, setMusicPlaying, nextTrack, prevTrack, setVolume } = useOS();
   const { driver } = useAura();
   const track = TRACKS[music.trackIndex];
+
+  const hostRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<YTPlayer | null>(null);
+  const readyRef = useRef(false);
+  const [videoId, setVideoId] = useState<string | null>(null);
+  const [nowTitle, setNowTitle] = useState('');
+  const [thumb, setThumb] = useState<string | undefined>();
+  const [status, setStatus] = useState('');
+  const [q, setQ] = useState('');
+  const hasKey = youtubeKeyPresent();
+
+  // Create the hidden YouTube player once (streams the audio; no key needed for playback).
+  useEffect(() => {
+    let cancelled = false;
+    loadYouTubeApi().then(() => {
+      const YT = getYT();
+      if (cancelled || !YT || !hostRef.current || playerRef.current) return;
+      playerRef.current = new YT.Player(hostRef.current, {
+        height: '0', width: '0',
+        playerVars: { autoplay: 0, controls: 0, modestbranding: 1, rel: 0 },
+        events: { onReady: () => { readyRef.current = true; playerRef.current?.setVolume(music.volume); } },
+      });
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Resolve the current track to a real video via YouTube search (needs the key).
+  useEffect(() => {
+    let cancelled = false;
+    if (!hasKey) { setStatus('Add VITE_YOUTUBE_API_KEY to enable playback'); setVideoId(null); return; }
+    setStatus('Finding track…');
+    searchVideo(track.q ?? `${track.title} ${track.artist}`).then((v) => {
+      if (cancelled) return;
+      if (v) { setVideoId(v.id); setNowTitle(v.title); setThumb(v.thumb); setStatus(''); }
+      else setStatus('No match on YouTube');
+    });
+    return () => { cancelled = true; };
+  }, [track, hasKey]);
+
+  // Load into the player when the resolved video changes.
+  useEffect(() => {
+    const p = playerRef.current;
+    if (!p || !videoId || !readyRef.current) return;
+    p.loadVideoById(videoId);
+    if (!music.playing) setTimeout(() => p.pauseVideo(), 400);
+  }, [videoId]); // eslint-disable-line
+
+  useEffect(() => {
+    const p = playerRef.current;
+    if (!p || !readyRef.current) return;
+    if (music.playing) p.playVideo(); else p.pauseVideo();
+  }, [music.playing]);
+
+  useEffect(() => {
+    if (playerRef.current && readyRef.current) playerRef.current.setVolume(music.volume);
+  }, [music.volume]);
+
+  const runSearch = () => {
+    const query = q.trim();
+    if (!query || !hasKey) return;
+    setStatus('Searching…');
+    searchVideo(query).then((v) => {
+      if (v) { setVideoId(v.id); setNowTitle(v.title); setThumb(v.thumb); setStatus(''); setMusicPlaying(true); }
+      else setStatus('No result');
+    });
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 520 }}>
       <div style={{ ...card, padding: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-        <div style={{ width: 120, height: 120, borderRadius: 16, background: 'linear-gradient(135deg,#3b82f6,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Music size={48} color="#fff" />
+        <div style={{ width: 120, height: 120, borderRadius: 16, overflow: 'hidden', background: 'linear-gradient(135deg,#3b82f6,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {thumb ? <img src={thumb} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Music size={48} color="#fff" />}
         </div>
-        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>{track.title}</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', textAlign: 'center' }}>{track.title}</div>
         <div style={{ color: 'var(--text-tertiary)' }}>{track.artist}</div>
         <div style={{ ...label, color: 'var(--accent)' }}>{driver ? `${driver.playlist} · ${driver.name}` : 'Playlist'}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginTop: 8 }}>
@@ -92,7 +160,17 @@ function MusicApp() {
           <input type="range" min={0} max={100} value={music.volume} onChange={(e) => setVolume(Number(e.target.value))} style={{ flex: 1, accentColor: 'var(--accent)' }} />
           <span style={{ ...label, width: 32, textAlign: 'right' }}>{music.volume}</span>
         </div>
+        <div style={{ display: 'flex', gap: 8, width: '100%', marginTop: 4 }}>
+          <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') runSearch(); }}
+            placeholder={hasKey ? 'Search any song…' : 'Add YouTube key to search'} disabled={!hasKey}
+            style={{ flex: 1, padding: '9px 12px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }} />
+          <button onClick={runSearch} disabled={!hasKey} style={{ ...iconBtn, width: 42, height: 42 }}><Search size={18} /></button>
+        </div>
+        <div style={{ ...label, textTransform: 'none', display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-tertiary)' }}>
+          <span style={{ width: 9, height: 9, borderRadius: 2, background: '#ff0000', flexShrink: 0 }} /> {status || nowTitle || 'YouTube'}
+        </div>
       </div>
+      <div style={{ width: 0, height: 0, overflow: 'hidden', position: 'absolute' }}><div ref={hostRef} /></div>
     </div>
   );
 }

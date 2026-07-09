@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useAura } from '../AuraContext';
-import { OSProvider, useOS, TRACKS, DESTINATIONS } from '../os/OSContext';
+import { OSProvider, useOS, TRACKS, DESTINATIONS, NO_MATCH } from '../os/OSContext';
 import { APP_META, renderApp, PLACE_QUERIES } from '../os/apps';
 import { CORE_HTTP } from '../config';
 import { glass, glassStrong, label, Chip, AuraOrb } from '../ui';
 import FirstDrive from '../components/FirstDrive';
+import LiveVoice from '../components/LiveVoice';
+import { speak } from '../utils/voice';
 import {
   Mic, MicOff, ChevronLeft, X, ShieldCheck, Music as MusicIcon,
   Thermometer, Navigation as NavIcon, Send, Play, Pause, SkipForward, SkipBack,
@@ -40,6 +42,22 @@ function HomeShell() {
     prevAlert.current = on;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [alert]);
+
+  // Proactive spoken greeting: when a driver's persona loads, Aura *says* hello (once per driver)
+  // and tells the buddy who's in the seat so the conversation is personalized.
+  const greeted = useRef('');
+  useEffect(() => {
+    if (!driver?.name) return;
+    os.setDriverName(driver.name);
+    if (greeted.current !== driver.name) {
+      greeted.current = driver.name;
+      const h = new Date().getHours();
+      const part = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+      const tail = driver.playlist ? ` ${driver.playlist} is on.` : '';
+      speak(`Good ${part}, ${driver.name}.${tail} Where are we headed?`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [driver?.name]);
 
   const activeMeta = APP_META.find((a) => a.id === os.activeApp);
   const clock = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -266,9 +284,12 @@ function AppDock() {
 /* ── Ask Aura (voice) ────────────────────────────────────────────── */
 function AskAura() {
   const os = useOS();
+  const { driver } = useAura();
   const [text, setText] = useState('');
-  const submit = () => { if (text.trim()) { os.runCommand(text); setText(''); } };
+  const [live, setLive] = useState(false);
+  const submit = () => { if (text.trim()) { const r = os.runCommand(text); if (r === NO_MATCH) os.converse(text); setText(''); } };
   return (
+    <>
     <div style={{ ...glassStrong, padding: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
       <button
         onClick={() => (os.listening ? os.stopVoice() : os.startVoice())}
@@ -286,16 +307,23 @@ function AskAura() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && submit()}
-            placeholder={'Ask Aura — “open music”, “navigate to office”, “I’m awake”'}
+            placeholder={'Ask Aura anything — “open music”, “navigate to office”, or just talk to me'}
             style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: 14 }}
           />
         )}
         {os.voiceFeedback && <div style={{ ...label, textTransform: 'none', marginTop: 2 }}>↳ {os.voiceFeedback}</div>}
       </div>
+      {/* Hands-free continuous Gemini Live voice — tap the orb, then just talk. */}
+      <button onClick={() => setLive(true)} title="Hands-free live voice (Gemini Live)"
+        style={{ background: 'transparent', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 0 }}>
+        <AuraOrb size={40} active />
+      </button>
       {!os.listening && (
         <button onClick={submit} style={{ width: 44, height: 44, borderRadius: 12, border: '1px solid var(--glass-border)', background: 'var(--glass)', color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Send size={17} /></button>
       )}
     </div>
+    {live && <LiveVoice name={driver?.name} onExit={() => setLive(false)} />}
+    </>
   );
 }
 

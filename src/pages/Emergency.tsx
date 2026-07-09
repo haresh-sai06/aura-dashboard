@@ -54,8 +54,9 @@ export default function Emergency() {
 
   const sendTest = async (i: number) => {
     setTesting(i); setTestMsg(null);
+    const loc = await getLocation();  // real browser GPS so the test proves location too
     try {
-      const r = await fetch(`${CORE_HTTP}/emergency/test`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ index: i }) }).then((res) => res.json());
+      const r = await fetch(`${CORE_HTTP}/emergency/test`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ index: i, location: loc ?? DEMO_LOCATION }) }).then((res) => res.json());
       setTestMsg({ i, ok: !!r.ok, text: r.ok ? 'Test sent ✓' : (r.result?.error ?? 'failed') });
     } catch { setTestMsg({ i, ok: false, text: 'Core offline' }); }
     setTesting(null);

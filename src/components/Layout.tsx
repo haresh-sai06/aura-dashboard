@@ -4,6 +4,7 @@ import { useAura } from '../AuraContext';
 import { AuraOrb } from '../ui';
 import { SURFACE } from '../config';
 import HeadUnitVoice from './HeadUnitVoice';
+import LearnedToast from './LearnedToast';
 
 // System A — in-car head unit: clean, driver-facing.
 const HEAD_UNIT_NAV = [
@@ -29,6 +30,7 @@ export default function Layout() {
   return (
     <div style={{ display: 'flex', height: '100%' }}>
       <HeadUnitVoice />
+      <LearnedToast />
       <aside
         style={{
           width: 232,
