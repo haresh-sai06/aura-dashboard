@@ -1,11 +1,12 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { Home, Activity, ShieldCheck } from 'lucide-react';
+import { Home, Activity, ShieldCheck, Bot } from 'lucide-react';
 import { useAura } from '../AuraContext';
 
 const NAV = [
   { to: '/', label: 'Home', icon: Home, end: true },
   { to: '/monitor', label: 'Live Monitor', icon: Activity, end: false },
   { to: '/autocare', label: 'AutoCare AI', icon: ShieldCheck, end: false },
+  { to: '/copilot', label: 'Aura Copilot', icon: Bot, end: false },
 ];
 
 export default function Layout() {

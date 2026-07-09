@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { CORE_WS } from "./config";
 
 /** Standard Aura envelope shared by every interface: {type, timestamp, payload}. */
 export type Driver = { name: string; playlist: string };
@@ -67,6 +68,18 @@ export type Explain = {
   factors?: ExplainFactor[];
 };
 
+/** Streamed natural-language "why" from the on-device Reasoning Agent (reasoning). */
+export type Reasoning = { text: string; streaming: boolean; acted?: boolean; driver?: string };
+
+/** A grounded RAG answer from the Aura Copilot (copilot.response). */
+export type CopilotAnswer = {
+  query: string;
+  answer: string;
+  sources: string[];
+  grounded: boolean;
+  driver?: string;
+};
+
 type AuraValue = {
   connected: boolean;
   driver: Driver | null;
@@ -74,6 +87,8 @@ type AuraValue = {
   live: LiveState | null;
   telemetry: Telemetry | null;
   explain: Explain | null;
+  reasoning: Reasoning | null;
+  copilot: CopilotAnswer | null;
   events: AuraEvent[];
 };
 
@@ -84,13 +99,15 @@ const AuraCtx = createContext<AuraValue>({
   live: null,
   telemetry: null,
   explain: null,
+  reasoning: null,
+  copilot: null,
   events: [],
 });
 
 // One shared hook for every screen + the sidebar — a single WebSocket for the whole app.
 export const useAura = () => useContext(AuraCtx);
 
-const AURA_URL = "ws://127.0.0.1:8765/";
+const AURA_URL = CORE_WS;
 
 export function AuraProvider({ children }: { children: ReactNode }) {
   const [connected, setConnected] = useState(false);
@@ -99,6 +116,8 @@ export function AuraProvider({ children }: { children: ReactNode }) {
   const [live, setLive] = useState<LiveState | null>(null);
   const [telemetry, setTelemetry] = useState<Telemetry | null>(null);
   const [explain, setExplain] = useState<Explain | null>(null);
+  const [reasoning, setReasoning] = useState<Reasoning | null>(null);
+  const [copilot, setCopilot] = useState<CopilotAnswer | null>(null);
   const [events, setEvents] = useState<AuraEvent[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -152,6 +171,35 @@ export function AuraProvider({ children }: { children: ReactNode }) {
         case "explain":
           setExplain(msg.payload as unknown as Explain);
           break;
+        case "reasoning": {
+          const pl = msg.payload as Record<string, unknown>;
+          const phase = String(pl.phase ?? "");
+          if (phase === "start") {
+            setReasoning({ text: "", streaming: true, acted: Boolean(pl.acted), driver: pl.driver as string });
+          } else if (phase === "delta") {
+            setReasoning((r) => ({
+              text: (pl.text as string) ?? ((r?.text ?? "") + ((pl.delta as string) ?? "")),
+              streaming: true,
+              acted: r?.acted,
+              driver: (pl.driver as string) ?? r?.driver,
+            }));
+          } else if (phase === "done") {
+            setReasoning({ text: String(pl.text ?? ""), streaming: false, acted: Boolean(pl.acted), driver: pl.driver as string });
+            pushEvent("reasoning", "Aura explained its decision");
+          }
+          break;
+        }
+        case "copilot.response": {
+          const pl = msg.payload as Record<string, unknown>;
+          setCopilot({
+            query: String(pl.query ?? ""),
+            answer: String(pl.answer ?? ""),
+            sources: (pl.sources as string[]) ?? [],
+            grounded: Boolean(pl.grounded),
+            driver: pl.driver as string,
+          });
+          break;
+        }
         case "safety.alert": {
           const a = msg.payload as unknown as SafetyAlert;
           setAlert(a);
@@ -175,7 +223,7 @@ export function AuraProvider({ children }: { children: ReactNode }) {
   }, [connect]);
 
   return (
-    <AuraCtx.Provider value={{ connected, driver, alert, live, telemetry, explain, events }}>
+    <AuraCtx.Provider value={{ connected, driver, alert, live, telemetry, explain, reasoning, copilot, events }}>
       {children}
     </AuraCtx.Provider>
   );

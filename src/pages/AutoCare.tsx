@@ -1,6 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
-import { Shield, AlertTriangle, Car, Brain, ChevronRight, Eye, Volume2, Navigation, Thermometer, Radio } from 'lucide-react';
+import { Shield, AlertTriangle, Car, Brain, ChevronRight, Eye, Volume2, VolumeX, Navigation, Thermometer, Radio, Cpu } from 'lucide-react';
 import { useAura } from '../AuraContext';
+import { speak, setVoiceMuted, warmVoices } from '../utils/voice';
+
+/** What Aura says out loud at each escalation level (personalized to the driver). */
+function escalationLine(level: number, name?: string): string {
+  const who = name ? `${name}, ` : '';
+  switch (level) {
+    case 1: return `${who}I'm noticing early signs of fatigue. Consider taking a short break.`;
+    case 2: return `${who}fatigue confirmed. I'm easing off the speed and holding the lane. Please respond.`;
+    case 3: return `${who}you're not responding. Hazard lights on — I'm preparing to pull over.`;
+    case 4: return `Engaging a safe stop now. Pulling over.`;
+    default: return '';
+  }
+}
 import {
   AutocareProtocol as AutocareEngine,
   LEVEL_DESCRIPTIONS,
@@ -25,9 +38,13 @@ const LEVEL_ICONS: Record<InterventionLevel, typeof Shield> = {
 };
 
 export default function AutoCare() {
-  const { connected, live } = useAura();
+  const { connected, live, reasoning, driver } = useAura();
   const liveRef = useRef(live);
   liveRef.current = live;
+
+  const [muted, setMuted] = useState(false);
+  const prevLevel = useRef(0);
+  useEffect(() => { warmVoices(); }, []);
 
   const [autocareState, setAutocareState] = useState<AutocareState>({
     level: 0,
@@ -103,6 +120,19 @@ export default function AutoCare() {
     setSimScenario(pattern);
   };
 
+  // Aura speaks each escalation transition — the proactive co-pilot "voice" moment.
+  useEffect(() => {
+    const lvl = autocareState.level;
+    if (lvl !== prevLevel.current) {
+      if (lvl > prevLevel.current && lvl >= 1) {
+        speak(escalationLine(lvl, driver?.name), { rate: lvl >= 3 ? 1.03 : 0.98 });
+      } else if (lvl === 0 && prevLevel.current > 0) {
+        speak(`${driver?.name ? driver.name + ', ' : ''}you're alert again. Handing control back to you.`);
+      }
+      prevLevel.current = lvl;
+    }
+  }, [autocareState.level, driver]);
+
   const levelColor = LEVEL_COLORS[autocareState.level];
   const LevelIcon = LEVEL_ICONS[autocareState.level];
   const liveActive = !simScenario && connected && !!live?.facePresent;
@@ -135,6 +165,13 @@ export default function AutoCare() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <button
+            onClick={() => { const m = !muted; setMuted(m); setVoiceMuted(m); if (!m) speak('Voice on.'); }}
+            title={muted ? 'Aura voice muted' : 'Aura voice on'}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-tertiary)', color: muted ? 'var(--text-tertiary)' : 'var(--accent)', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+          >
+            {muted ? <VolumeX size={12} /> : <Volume2 size={12} />} {muted ? 'Voice off' : 'Voice'}
+          </button>
           <span style={{ fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: liveActive ? 'rgba(34,197,94,0.1)' : 'var(--bg-tertiary)', color: liveActive ? 'var(--success)' : 'var(--text-tertiary)' }}>
             <Radio size={12} /> {liveActive ? 'LIVE · your camera' : simScenario ? 'SIMULATION' : 'IDLE'}
           </span>
@@ -181,8 +218,20 @@ export default function AutoCare() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
               <Brain size={18} style={{ color: 'var(--info)' }} />
               <span style={{ color: 'var(--text-primary)', fontSize: 13, fontWeight: 800 }}>WORLD MODEL PREDICTION</span>
+              {reasoning?.text && (
+                <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 6, background: 'var(--accent-subtle)', color: 'var(--accent)' }}>
+                  <Cpu size={11} /> AURA REASONER {reasoning.streaming ? '· thinking…' : '· on-device LLM'}
+                </span>
+              )}
             </div>
-            <p style={{ color: 'var(--text-primary)', fontSize: 13, lineHeight: 1.6, margin: 0 }}>{autocareState.worldModelPrediction}</p>
+            {reasoning?.text ? (
+              <p style={{ color: 'var(--text-primary)', fontSize: 13, lineHeight: 1.6, margin: 0 }}>
+                {reasoning.text}
+                {reasoning.streaming && <span style={{ animation: 'pulse 1s infinite', color: 'var(--accent)' }}>▋</span>}
+              </p>
+            ) : (
+              <p style={{ color: 'var(--text-primary)', fontSize: 13, lineHeight: 1.6, margin: 0 }}>{autocareState.worldModelPrediction}</p>
+            )}
             <div style={{ marginTop: 12, display: 'flex', gap: 18 }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)', fontSize: 11 }}>
                 <Thermometer size={13} /> Drowsiness Score: <strong style={{ color: levelColor }}>{displayScore}</strong>

@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { CORE_HTTP } from '../config';
 
 export type AppId = 'music' | 'navigation' | 'climate' | 'phone' | 'settings';
 
@@ -69,7 +70,7 @@ export const useOS = () => {
   return v;
 };
 
-const CORE = 'http://127.0.0.1:8765';
+const CORE = CORE_HTTP;
 let nid = 1;
 
 export function OSProvider({ children }: { children: ReactNode }) {
