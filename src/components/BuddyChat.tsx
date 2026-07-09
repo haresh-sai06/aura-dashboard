@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { Mic, Send, Sparkles, ArrowRight } from 'lucide-react';
+import { Mic, Send, Sparkles, ArrowRight, Radio } from 'lucide-react';
 import { AuraOrb, glass, glassStrong, label, Chip } from '../ui';
 import { speak } from '../utils/voice';
 import { CORE_HTTP } from '../config';
+import LiveVoice from './LiveVoice';
 
 type Msg = { role: 'user' | 'aura'; text: string; pending?: boolean };
 type Fact = { text: string; category: string };
@@ -24,9 +25,12 @@ export default function BuddyChat({ driverId, name, onDone }:
   const [listening, setListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const opened = useRef(false);
+  const [liveMode, setLiveMode] = useState(false);
+  const [aoedeOk, setAoedeOk] = useState(false);
 
   useEffect(() => { if (!opened.current) { opened.current = true; speak(opener, { rate: 0.98 }); } }, [opener]);
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }); }, [messages]);
+  useEffect(() => { fetch(`${CORE_HTTP}/aoede/status`).then((r) => r.json()).then((d) => setAoedeOk(!!d.available)).catch(() => {}); }, []);
 
   const send = async (text: string) => {
     const msg = text.trim();
@@ -69,6 +73,8 @@ export default function BuddyChat({ driverId, name, onDone }:
     try { rec.start(); } catch { setListening(false); }
   };
 
+  if (liveMode) return <LiveVoice name={name} onExit={() => setLiveMode(false)} />;
+
   const wrap: CSSProperties = {
     position: 'fixed', inset: 0, zIndex: 2000, display: 'flex', flexDirection: 'column',
     background: 'radial-gradient(900px 620px at 50% 12%, rgba(207,164,106,0.12), transparent 60%), var(--bg-primary)',
@@ -86,9 +92,17 @@ export default function BuddyChat({ driverId, name, onDone }:
             <div style={{ ...label, textTransform: 'none' }}>Getting to know you, {name}</div>
           </div>
         </div>
-        <button onClick={onDone} style={{ ...glass, padding: '10px 18px', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-          Continue to Aura OS <ArrowRight size={16} />
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {aoedeOk && (
+            <button onClick={() => setLiveMode(true)} title="Talk to Aoede in real time"
+              style={{ padding: '10px 18px', borderRadius: 'var(--radius)', border: 'none', background: 'var(--accent-grad)', color: '#fff', cursor: 'pointer', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8, boxShadow: 'var(--glow)' }}>
+              <Radio size={16} /> Live Voice · Aoede
+            </button>
+          )}
+          <button onClick={onDone} style={{ ...glass, padding: '10px 18px', color: 'var(--text-primary)', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+            Continue to Aura OS <ArrowRight size={16} />
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 16, flex: 1, minHeight: 0 }}>

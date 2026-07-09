@@ -119,6 +119,17 @@ export type Countermeasure = { driver?: string; level: number | null; actions: A
 /** A vision-LLM description of a camera frame (vision.scene). */
 export type VisionScene = { description: string; kind: string; driver?: string; ts: number };
 
+/** Emergency escalation (eCall) status + per-contact delivery results. */
+export type ECallResult = { name?: string; phone?: string; channel?: string; ok?: boolean; error?: string; status?: string };
+export type ECall = {
+  phase: string; // dispatching | dispatched | cancelled
+  driver?: string;
+  ok?: boolean;
+  results?: ECallResult[];
+  location?: { lat?: number; lng?: number; label?: string };
+  ts: number;
+};
+
 type AuraValue = {
   connected: boolean;
   driver: Driver | null;
@@ -132,6 +143,7 @@ type AuraValue = {
   orchestration: Orchestration | null;
   countermeasure: Countermeasure | null;
   vision: VisionScene | null;
+  ecall: ECall | null;
   events: AuraEvent[];
 };
 
@@ -148,6 +160,7 @@ const AuraCtx = createContext<AuraValue>({
   orchestration: null,
   countermeasure: null,
   vision: null,
+  ecall: null,
   events: [],
 });
 
@@ -169,6 +182,7 @@ export function AuraProvider({ children }: { children: ReactNode }) {
   const [orchestration, setOrchestration] = useState<Orchestration | null>(null);
   const [countermeasure, setCountermeasure] = useState<Countermeasure | null>(null);
   const [vision, setVision] = useState<VisionScene | null>(null);
+  const [ecall, setEcall] = useState<ECall | null>(null);
   const [events, setEvents] = useState<AuraEvent[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -273,6 +287,19 @@ export function AuraProvider({ children }: { children: ReactNode }) {
           });
           break;
         }
+        case "ecall": {
+          const pl = msg.payload as Record<string, unknown>;
+          setEcall({
+            phase: String(pl.phase ?? ""),
+            driver: pl.driver as string,
+            ok: pl.ok as boolean,
+            results: (pl.results as ECallResult[]) ?? undefined,
+            location: pl.location as ECall["location"],
+            ts: Date.now(),
+          });
+          if (pl.phase === "dispatched") pushEvent("ecall", pl.ok ? "Emergency alert sent" : "Emergency alert failed");
+          break;
+        }
         case "safety.alert": {
           const a = msg.payload as unknown as SafetyAlert;
           setAlert(a);
@@ -296,7 +323,7 @@ export function AuraProvider({ children }: { children: ReactNode }) {
   }, [connect]);
 
   return (
-    <AuraCtx.Provider value={{ connected, driver, alert, live, telemetry, explain, reasoning, copilot, forecast, orchestration, countermeasure, vision, events }}>
+    <AuraCtx.Provider value={{ connected, driver, alert, live, telemetry, explain, reasoning, copilot, forecast, orchestration, countermeasure, vision, ecall, events }}>
       {children}
     </AuraCtx.Provider>
   );

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useAura } from '../AuraContext';
 import { OSProvider, useOS, TRACKS, DESTINATIONS } from '../os/OSContext';
-import { APP_META, renderApp } from '../os/apps';
+import { APP_META, renderApp, PLACE_QUERIES } from '../os/apps';
 import { CORE_HTTP } from '../config';
 import { glass, glassStrong, label, Chip, AuraOrb } from '../ui';
 import FirstDrive from '../components/FirstDrive';
@@ -175,14 +175,14 @@ function NavCard() {
   const dest = DESTINATIONS.find((d) => d.id === os.nav.destination);
   return (
     <button onClick={() => os.openApp('navigation')} style={{ ...glass, padding: 0, cursor: 'pointer', textAlign: 'left', overflow: 'hidden', position: 'relative', minHeight: 172 }}>
-      <svg width="100%" height="150" viewBox="0 0 400 150" preserveAspectRatio="none" style={{ display: 'block' }}>
-        <rect width="400" height="150" fill="#0c1420" />
-        {[30, 70, 110].map((y) => <line key={y} x1="0" y1={y} x2="400" y2={y} stroke="#16202e" strokeWidth="1" />)}
-        {[90, 190, 290].map((x) => <line key={x} x1={x} y1="0" x2={x} y2="150" stroke="#16202e" strokeWidth="1" />)}
-        <polyline points="30,130 110,110 190,96 270,54 360,24" fill="none" stroke={dest ? 'var(--success)' : 'var(--accent)'} strokeWidth="4" strokeLinecap="round" />
-        <circle cx="30" cy="130" r="6" fill="var(--accent)" />
-        <circle cx="360" cy="24" r="7" fill={dest ? 'var(--success)' : 'var(--text-tertiary)'} />
-      </svg>
+      <img
+        src={dest
+          ? `${CORE_HTTP}/maps/static?destination=${encodeURIComponent(PLACE_QUERIES[dest.id] || dest.name)}&size=440x172`
+          : `${CORE_HTTP}/maps/static?center=${encodeURIComponent('MG Road, Bengaluru')}&size=440x172`}
+        alt="map"
+        style={{ width: '100%', height: 172, objectFit: 'cover', display: 'block' }}
+      />
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(16,14,11,0.5) 0%, transparent 32%, transparent 58%, rgba(16,14,11,0.78) 100%)', pointerEvents: 'none' }} />
       <div style={{ position: 'absolute', top: 12, left: 14, ...label }}><NavIcon size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} /> Navigation</div>
       <div style={{ position: 'absolute', bottom: 12, left: 14, right: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-primary)', fontWeight: 700 }}>

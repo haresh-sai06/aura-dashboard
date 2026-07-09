@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import {
   Music, Navigation, Thermometer, Phone, Settings as SettingsIcon,
   Play, Pause, SkipForward, SkipBack, Volume2, Plus, Minus, Wind, Snowflake,
@@ -8,6 +8,14 @@ import { useOS, TRACKS, DESTINATIONS, type AppId } from './OSContext';
 import { useAura } from '../AuraContext';
 import DriverSelector from '../components/DriverSelector';
 import { glass } from '../ui';
+import { CORE_HTTP } from '../config';
+
+// Real place strings so Google Maps can draw an actual route for each demo destination.
+export const PLACE_QUERIES: Record<string, string> = {
+  home: 'Koramangala, Bengaluru',
+  office: 'Manyata Tech Park, Bengaluru',
+  airport: 'Kempegowda International Airport, Bengaluru',
+};
 
 // Warm-harmonized app accents (champagne / sage / amber / mauve / taupe).
 export const APP_META: { id: AppId; name: string; icon: typeof Music; accent: string }[] = [
@@ -92,22 +100,38 @@ function MusicApp() {
 function NavApp() {
   const { nav, setDestination } = useOS();
   const dest = DESTINATIONS.find((d) => d.id === nav.destination);
+  const query = dest ? (PLACE_QUERIES[dest.id] || dest.name) : '';
+  const [route, setRoute] = useState<{ distance?: string; duration?: string } | null>(null);
+  const [mapOk, setMapOk] = useState(true);
+
+  useEffect(() => {
+    setRoute(null); setMapOk(true);
+    if (!query) return;
+    fetch(`${CORE_HTTP}/maps/route?destination=${encodeURIComponent(query)}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.ok) setRoute({ distance: d.distance, duration: d.duration }); })
+      .catch(() => {});
+  }, [query]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 620 }}>
-      <div style={{ ...card, padding: 0, height: 220, overflow: 'hidden', position: 'relative', background: '#0d1622' }}>
-        {/* faux map */}
-        <svg width="100%" height="100%" viewBox="0 0 600 220" preserveAspectRatio="none">
-          <rect width="600" height="220" fill="#17120c" />
-          {[40, 90, 140, 190].map((y) => <line key={y} x1="0" y1={y} x2="600" y2={y} stroke="#241d14" strokeWidth="1" />)}
-          {[120, 260, 400, 520].map((x) => <line key={x} x1={x} y1="0" x2={x} y2="220" stroke="#241d14" strokeWidth="1" />)}
-          <polyline points="40,200 120,170 260,150 400,90 520,40" fill="none" stroke={dest ? 'var(--success)' : 'var(--accent)'} strokeWidth="4" strokeLinecap="round" />
-          <circle cx="40" cy="200" r="6" fill="var(--accent)" />
-          <circle cx="520" cy="40" r="7" fill={dest ? 'var(--success)' : 'var(--text-tertiary)'} />
-        </svg>
+      <div style={{ ...card, padding: 0, height: 240, overflow: 'hidden', position: 'relative', background: 'var(--bg-tertiary)' }}>
+        {dest && mapOk ? (
+          <img
+            src={`${CORE_HTTP}/maps/static?destination=${encodeURIComponent(query)}&size=620x240`}
+            alt={`Route to ${dest.name}`}
+            onError={() => setMapOk(false)}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+        ) : (
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', fontSize: 14, textAlign: 'center', padding: 20 }}>
+            {dest ? 'Map unavailable — check the Maps key' : 'Pick a destination, or just ask Aoede to take you somewhere'}
+          </div>
+        )}
         {dest && (
-          <div style={{ position: 'absolute', top: 12, left: 12, ...card, padding: '8px 14px' }}>
+          <div style={{ position: 'absolute', top: 12, left: 12, ...card, padding: '8px 14px', background: 'var(--glass-strong)' }}>
             <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{dest.name}</div>
-            <div style={{ ...label }}>{dest.eta} · {dest.dist}</div>
+            <div style={{ ...label }}>{route ? `${route.duration} · ${route.distance}` : 'routing…'}</div>
           </div>
         )}
       </div>
@@ -115,9 +139,9 @@ function NavApp() {
         <p style={{ ...label, marginBottom: 8 }}>Where to?</p>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {DESTINATIONS.map((d) => (
-            <button key={d.id} onClick={() => setDestination(d.id)} style={{ ...card, padding: '12px 18px', cursor: 'pointer', border: nav.destination === d.id ? '1px solid var(--success)' : '1px solid var(--border)', color: 'var(--text-primary)' }}>
+            <button key={d.id} onClick={() => setDestination(d.id)} style={{ ...card, padding: '12px 18px', cursor: 'pointer', border: nav.destination === d.id ? '1px solid var(--accent)' : '1px solid var(--border)', color: 'var(--text-primary)' }}>
               <div style={{ fontWeight: 600 }}>{d.name}</div>
-              <div style={{ ...label }}>{d.eta}</div>
+              <div style={{ ...label }}>{nav.destination === d.id && route ? route.duration : d.eta}</div>
             </button>
           ))}
         </div>
