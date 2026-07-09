@@ -1,21 +1,46 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 :root {
-  --bg-primary: #09090b;
-  --bg-secondary: #18181b;
-  --bg-tertiary: #27272a;
-  --border: #27272a;
-  --border-hover: #3f3f46;
-  --text-primary: #fafafa;
-  --text-secondary: #a1a1aa;
-  --text-tertiary: #71717a;
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
-  --accent-subtle: rgba(59, 130, 246, 0.1);
-  --success: #22c55e;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --info: #8b5cf6;
+  /* Warm-luxury surfaces — deep espresso, not clinical black (MBUX-inspired) */
+  --bg-primary: #100e0b;
+  --bg-secondary: #1b1712;
+  --bg-tertiary: #262019;
+
+  /* "Glass" tokens repurposed as warm solid surfaces (no blur) */
+  --glass: #1b1712;
+  --glass-strong: #211c15;
+  --glass-border: rgba(232, 214, 183, 0.09);
+
+  --border: rgba(232, 214, 183, 0.09);
+  --border-hover: rgba(232, 214, 183, 0.2);
+
+  --text-primary: #f6f1e8;
+  --text-secondary: #bcb2a2;
+  --text-tertiary: #877d6d;
+
+  /* Signature accent — champagne gold */
+  --accent: #cfa46a;
+  --accent-2: #e8c99c;
+  --accent-hover: #ddb782;
+  --accent-subtle: rgba(207, 164, 106, 0.12);
+  --accent-grad: linear-gradient(135deg, #ecd2a4 0%, #c49355 100%);
+
+  --success: #7cc292;
+  --warning: #e3a85c;
+  --danger: #e0685f;
+  --info: #bf9fd8;
+
+  /* Elevation + warm highlight + subtle glow (depth without blur) */
+  --elev-1: 0 4px 18px rgba(0, 0, 0, 0.42);
+  --elev-2: 0 18px 48px rgba(0, 0, 0, 0.55);
+  --highlight: linear-gradient(180deg, rgba(255, 246, 233, 0.045), rgba(255, 246, 233, 0) 42%);
+  --glow: 0 0 24px rgba(207, 164, 106, 0.22);
+  --glow-strong: 0 0 40px rgba(232, 201, 156, 0.34);
+
+  --radius-sm: 12px;
+  --radius: 18px;
+  --radius-lg: 26px;
+
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
   color-scheme: dark;
@@ -34,58 +59,72 @@ body,
 
 body {
   background:
-    radial-gradient(1200px 620px at 12% -12%, rgba(59, 130, 246, 0.1), transparent 60%),
-    radial-gradient(1000px 720px at 112% 118%, rgba(139, 92, 246, 0.1), transparent 62%),
+    radial-gradient(1200px 640px at 50% -20%, rgba(207, 164, 106, 0.11), transparent 60%),
+    radial-gradient(1000px 760px at 114% 122%, rgba(176, 116, 66, 0.07), transparent 62%),
     var(--bg-primary);
   color: var(--text-secondary);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 14px;
+  letter-spacing: 0.1px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--bg-tertiary);
-  border-radius: 3px;
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--border-hover);
 }
 
+button {
+  font-family: inherit;
+}
+
+/* ── Motion ─────────────────────────────────────────────────────────── */
 @keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 @keyframes auraGlow {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
-  }
-  50% {
-    box-shadow: 0 0 22px 2px rgba(59, 130, 246, 0.35);
-  }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(79, 140, 255, 0); }
+  50% { box-shadow: 0 0 28px 3px rgba(79, 140, 255, 0.4); }
 }
 
 @keyframes riseIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
+
+/* Slow breathing glow for the Aura assistant emblem (warm, restrained) */
+@keyframes orbBreathe {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 20px 3px rgba(207, 164, 106, 0.28), inset 0 0 16px rgba(232, 201, 156, 0.32); }
+  50% { transform: scale(1.04); box-shadow: 0 0 34px 6px rgba(232, 201, 156, 0.42), inset 0 0 20px rgba(232, 201, 156, 0.45); }
+}
+
+@keyframes orbSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Flowing dashes along active agent-graph edges (see pages/Agents.tsx) */
+@keyframes dashFlow {
+  to { stroke-dashoffset: -14; }
+}
+
+/* Utility: rise-in entrance for cards */
+.rise { animation: riseIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }

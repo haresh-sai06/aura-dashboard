@@ -26,3 +26,23 @@ function resolveCoreHost(): string {
 export const CORE_HOST = resolveCoreHost();
 export const CORE_HTTP = `http://${CORE_HOST}:${CORE_PORT}`;
 export const CORE_WS = `ws://${CORE_HOST}:${CORE_PORT}/`;
+
+// Which "surface" this screen is:
+//   • 'a' = in-car head unit (default)      → Home, Agents, Copilot
+//   • 'b' = Safety Monitor laptop (camera)  → Live Monitor, AutoCare
+// System B launches with ?surface=b (remembered), e.g. /monitor?core=192.168.1.23&surface=b
+export type Surface = 'a' | 'b';
+function resolveSurface(): Surface {
+  if (typeof window === 'undefined') return 'a';
+  const q = new URLSearchParams(window.location.search).get('surface');
+  if (q === 'a' || q === 'b') {
+    try { localStorage.setItem('aura_surface', q); } catch { /* ignore */ }
+    return q;
+  }
+  try {
+    return localStorage.getItem('aura_surface') === 'b' ? 'b' : 'a';
+  } catch {
+    return 'a';
+  }
+}
+export const SURFACE: Surface = resolveSurface();

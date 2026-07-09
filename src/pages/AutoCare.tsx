@@ -38,7 +38,7 @@ const LEVEL_ICONS: Record<InterventionLevel, typeof Shield> = {
 };
 
 export default function AutoCare() {
-  const { connected, live, reasoning, driver } = useAura();
+  const { connected, live, reasoning, driver, forecast } = useAura();
   const liveRef = useRef(live);
   liveRef.current = live;
 
@@ -224,6 +224,19 @@ export default function AutoCare() {
                 </span>
               )}
             </div>
+            {/* Predictive forecast (feature C) — always shown when we have a trajectory. */}
+            {forecast && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: reasoning?.text ? 10 : 0, paddingBottom: 10, borderBottom: reasoning?.text ? '1px solid var(--border)' : 'none' }}>
+                <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.05em', padding: '3px 8px', borderRadius: 6, color: '#fff',
+                  background: forecast.risk === 'imminent' ? 'var(--danger)' : forecast.risk === 'elevated' ? 'var(--warning)' : 'var(--success)' }}>
+                  {String(forecast.risk).toUpperCase()}
+                </span>
+                <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{forecast.horizonText}</span>
+                {forecast.secondsToThreshold != null && (
+                  <span style={{ marginLeft: 'auto', fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--warning)' }}>~{forecast.secondsToThreshold}s to line</span>
+                )}
+              </div>
+            )}
             {reasoning?.text ? (
               <p style={{ color: 'var(--text-primary)', fontSize: 13, lineHeight: 1.6, margin: 0 }}>
                 {reasoning.text}

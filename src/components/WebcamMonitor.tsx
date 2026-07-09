@@ -1,11 +1,13 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, type CSSProperties } from 'react';
 import type { Results } from '@mediapipe/face_mesh';
 import { useFaceMesh } from '../hooks/useFaceMesh';
 import { calculateEAR, calculateMAR, estimateHeadPose, getGazeDirection, type LM } from '../utils/faceMetrics';
 import { computeDrowsinessScore, BlinkDetector, GazeStabilityTracker } from '../utils/drowsinessModel';
 import { predictDrowsiness } from '../utils/tinyMLModel';
+import { computeFaceSignature, SignatureSmoother } from '../utils/faceSignature';
+import { CORE_HTTP } from '../config';
 
-const CORE = 'http://127.0.0.1:8765';
+const CORE = CORE_HTTP;
 const LEFT_CONTOUR = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 386, 385, 384, 398, 362];
 const RIGHT_CONTOUR = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246, 33];
 const W = 640;
@@ -49,6 +51,45 @@ export default function WebcamMonitor({ reportThreshold = 35 }: Props) {
   const lastReport = useRef(0);
   const lastState = useRef(0);
 
+  // Face-ID + vision-LLM state.
+  const sig = useRef(new SignatureSmoother());
+  const lastRecognize = useRef(0);
+  const lastVision = useRef(0);
+  const autoIdRef = useRef(true);
+  const [autoId, setAutoId] = useState(true);
+  autoIdRef.current = autoId;
+  const [recognized, setRecognized] = useState<string | null>(null);
+  const [enrollMsg, setEnrollMsg] = useState<string | null>(null);
+  const [visionBusy, setVisionBusy] = useState(false);
+
+  // Capture the current frame and ask the vision-LLM to describe it (out of the safety loop).
+  const captureScene = useCallback(() => {
+    const v = videoRef.current;
+    if (!v || v.readyState < 2) return;
+    const c = document.createElement('canvas');
+    c.width = 512; c.height = 384;
+    const cx = c.getContext('2d');
+    if (!cx) return;
+    cx.drawImage(v, 0, 0, c.width, c.height);
+    const image = c.toDataURL('image/jpeg', 0.6);
+    setVisionBusy(true);
+    void post('/vision/scene', { image, kind: 'cabin' }).finally(() => setVisionBusy(false));
+  }, []);
+  const captureSceneRef = useRef(captureScene);
+  captureSceneRef.current = captureScene;
+
+  // Enroll the current face signature for whoever is the active driver (server-side default).
+  const enrollFace = useCallback(() => {
+    const s = sig.current.value;
+    if (!s) { setEnrollMsg('No face detected'); setTimeout(() => setEnrollMsg(null), 2000); return; }
+    void post('/driver/enroll', { signature: s }).then((t) => {
+      let ok = false;
+      try { ok = JSON.parse(t)?.ok; } catch { /* ignore */ }
+      setEnrollMsg(ok ? 'Face enrolled ✓' : 'Enroll failed');
+      setTimeout(() => setEnrollMsg(null), 2500);
+    });
+  }, []);
+
   const onResults = useCallback(
     (results: Results) => {
       const ctx = canvasRef.current?.getContext('2d');
@@ -62,6 +103,25 @@ export default function WebcamMonitor({ reportThreshold = 35 }: Props) {
           facePresent.current = true;
           setHasFace(true);
           void post('/emit/identify');
+        }
+
+        // --- Face-ID: geometric signature (numbers only, never an image) ---
+        const faceSig = sig.current.update(computeFaceSignature(lm));
+        if (autoIdRef.current && faceSig && now - lastRecognize.current > 2500) {
+          lastRecognize.current = now;
+          void post('/driver/recognize', { signature: faceSig }).then((t) => {
+            try {
+              const r = JSON.parse(t);
+              if (r?.match) setRecognized(`${r.name} · ${Math.round((r.confidence ?? 0) * 100)}%`);
+              else setRecognized(null);
+            } catch { /* ignore */ }
+          });
+        }
+
+        // --- Vision-LLM scene understanding, periodically (out of the safety loop) ---
+        if (now - lastVision.current > 12000) {
+          lastVision.current = now;
+          captureSceneRef.current();
         }
 
         // --- Feature extraction ---
@@ -123,6 +183,8 @@ export default function WebcamMonitor({ reportThreshold = 35 }: Props) {
         if (facePresent.current) {
           facePresent.current = false;
           setHasFace(false);
+          sig.current.reset();
+          setRecognized(null);
         }
         if (alerted.current) {
           void post('/emit/resume');
@@ -153,13 +215,38 @@ export default function WebcamMonitor({ reportThreshold = 35 }: Props) {
           {closed ? 'EYES CLOSED' : 'EYES OPEN'}
         </span>
       </div>
+      {recognized && (
+        <div style={{ position: 'absolute', top: 12, right: 12, padding: '5px 11px', borderRadius: 6, fontSize: 11, fontWeight: 700, background: 'rgba(0,0,0,0.6)', color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--success)', boxShadow: '0 0 8px var(--success)' }} /> Face-ID: {recognized}
+        </div>
+      )}
+
       {!hasFace && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
           Looking for a face… (allow camera access)
         </div>
       )}
+
+      {/* Face-ID + Vision controls */}
+      <div style={{ position: 'absolute', bottom: 10, left: 10, right: 10, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button onClick={enrollFace} style={ctrlBtn()}>Enroll face</button>
+        <button onClick={() => setAutoId((a) => !a)} style={ctrlBtn(autoId ? 'var(--success)' : 'var(--text-tertiary)')}>
+          Auto-ID {autoId ? 'ON' : 'OFF'}
+        </button>
+        <button onClick={() => captureSceneRef.current()} disabled={visionBusy} style={ctrlBtn(visionBusy ? 'var(--text-tertiary)' : 'var(--accent)')}>
+          {visionBusy ? 'Reading…' : 'Read scene'}
+        </button>
+        {enrollMsg && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-2)', background: 'rgba(0,0,0,0.6)', padding: '5px 9px', borderRadius: 6 }}>{enrollMsg}</span>}
+      </div>
     </div>
   );
+}
+
+function ctrlBtn(color = 'var(--text-secondary)'): CSSProperties {
+  return {
+    padding: '6px 11px', borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+    background: 'rgba(0,0,0,0.6)', color, border: '1px solid rgba(255,255,255,0.14)',
+  };
 }
 
 function drawEyes(ctx: CanvasRenderingContext2D, lm: LM[], closed: boolean) {

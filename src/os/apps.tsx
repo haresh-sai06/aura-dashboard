@@ -7,16 +7,18 @@ import {
 import { useOS, TRACKS, DESTINATIONS, type AppId } from './OSContext';
 import { useAura } from '../AuraContext';
 import DriverSelector from '../components/DriverSelector';
+import { glass } from '../ui';
 
+// Warm-harmonized app accents (champagne / sage / amber / mauve / taupe).
 export const APP_META: { id: AppId; name: string; icon: typeof Music; accent: string }[] = [
-  { id: 'music', name: 'Music', icon: Music, accent: '#3b82f6' },
-  { id: 'navigation', name: 'Navigation', icon: Navigation, accent: '#22c55e' },
-  { id: 'climate', name: 'Climate', icon: Thermometer, accent: '#f59e0b' },
-  { id: 'phone', name: 'Phone', icon: Phone, accent: '#8b5cf6' },
-  { id: 'settings', name: 'Settings', icon: SettingsIcon, accent: '#a1a1aa' },
+  { id: 'music', name: 'Music', icon: Music, accent: '#cfa46a' },
+  { id: 'navigation', name: 'Navigation', icon: Navigation, accent: '#7cc292' },
+  { id: 'climate', name: 'Climate', icon: Thermometer, accent: '#e3a85c' },
+  { id: 'phone', name: 'Phone', icon: Phone, accent: '#bf9fd8' },
+  { id: 'settings', name: 'Settings', icon: SettingsIcon, accent: '#a99e8c' },
 ];
 
-const card: CSSProperties = { background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 12 };
+const card: CSSProperties = { ...glass };
 const iconBtn: CSSProperties = {
   width: 48, height: 48, borderRadius: '50%', border: '1px solid var(--border)',
   background: 'var(--bg-tertiary)', color: 'var(--text-primary)', cursor: 'pointer',
@@ -95,12 +97,12 @@ function NavApp() {
       <div style={{ ...card, padding: 0, height: 220, overflow: 'hidden', position: 'relative', background: '#0d1622' }}>
         {/* faux map */}
         <svg width="100%" height="100%" viewBox="0 0 600 220" preserveAspectRatio="none">
-          <rect width="600" height="220" fill="#0d1622" />
-          {[40, 90, 140, 190].map((y) => <line key={y} x1="0" y1={y} x2="600" y2={y} stroke="#1e2a3a" strokeWidth="1" />)}
-          {[120, 260, 400, 520].map((x) => <line key={x} x1={x} y1="0" x2={x} y2="220" stroke="#1e2a3a" strokeWidth="1" />)}
-          <polyline points="40,200 120,170 260,150 400,90 520,40" fill="none" stroke={dest ? '#22c55e' : '#3b82f6'} strokeWidth="4" strokeLinecap="round" />
-          <circle cx="40" cy="200" r="6" fill="#3b82f6" />
-          <circle cx="520" cy="40" r="7" fill={dest ? '#22c55e' : '#71717a'} />
+          <rect width="600" height="220" fill="#17120c" />
+          {[40, 90, 140, 190].map((y) => <line key={y} x1="0" y1={y} x2="600" y2={y} stroke="#241d14" strokeWidth="1" />)}
+          {[120, 260, 400, 520].map((x) => <line key={x} x1={x} y1="0" x2={x} y2="220" stroke="#241d14" strokeWidth="1" />)}
+          <polyline points="40,200 120,170 260,150 400,90 520,40" fill="none" stroke={dest ? 'var(--success)' : 'var(--accent)'} strokeWidth="4" strokeLinecap="round" />
+          <circle cx="40" cy="200" r="6" fill="var(--accent)" />
+          <circle cx="520" cy="40" r="7" fill={dest ? 'var(--success)' : 'var(--text-tertiary)'} />
         </svg>
         {dest && (
           <div style={{ position: 'absolute', top: 12, left: 12, ...card, padding: '8px 14px' }}>

@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useAura } from '../AuraContext';
 import Sparkline from '../components/Sparkline';
 import DriverSelector from '../components/DriverSelector';
-import { Activity, ShieldAlert, Car, Cpu, Brain } from 'lucide-react';
+import { Activity, ShieldAlert, Car, Cpu, Brain, Eye, ScanFace } from 'lucide-react';
+import { CORE_HTTP } from '../config';
 
 const card: CSSProperties = { background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 };
 const label: CSSProperties = { fontSize: 11, fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' };
@@ -45,9 +46,25 @@ function ThresholdBar({ labelText, value, score, color }: { labelText: string; v
 }
 
 export default function LiveMonitor() {
-  const { connected, live, alert, driver, events, telemetry, explain } = useAura();
+  const { connected, live, alert, driver, events, telemetry, explain, vision } = useAura();
   const [scoreHist, setScoreHist] = useState<number[]>([]);
   const lastTick = useRef(0);
+
+  // Face-ID enrollment status (polled) + one-click enroll of the active driver.
+  const [enrolled, setEnrolled] = useState<string[]>([]);
+  const [enrollMsg, setEnrollMsg] = useState<string | null>(null);
+  useEffect(() => {
+    const load = () => fetch(`${CORE_HTTP}/faceid/status`).then((r) => r.json()).then((d) => setEnrolled(d.enrolled ?? [])).catch(() => {});
+    load();
+    const id = setInterval(load, 4000);
+    return () => clearInterval(id);
+  }, []);
+  const enrollCurrent = () => {
+    fetch(`${CORE_HTTP}/driver/enroll_current`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      .then((r) => r.json())
+      .then((d) => { setEnrollMsg(d.ok ? 'Enrolled ✓' : (d.error ?? 'failed')); if (d.enrolled) setEnrolled(d.enrolled); setTimeout(() => setEnrollMsg(null), 2600); })
+      .catch(() => { setEnrollMsg('Core offline'); setTimeout(() => setEnrollMsg(null), 2600); });
+  };
 
   useEffect(() => {
     if (!live) return;
@@ -131,6 +148,42 @@ export default function LiveMonitor() {
                 <Brain size={11} /> TinyML 2nd opinion: <b style={{ color: 'var(--text-secondary)' }}>{live.ml.class}</b> ({Math.round(live.ml.confidence * 100)}%)
               </p>
             )}
+          </div>
+
+          {/* Vision-LLM scene understanding (out of the safety loop) */}
+          <div style={{ ...card, borderLeft: '3px solid var(--info)' }}>
+            <span style={{ ...label, display: 'flex', alignItems: 'center', gap: 6 }}><Eye size={12} /> Scene Understanding · Vision-LLM</span>
+            <p style={{ fontSize: 12.5, lineHeight: 1.5, color: 'var(--text-secondary)', margin: '8px 0 0' }}>
+              {vision?.description || 'Waiting for the camera to read the cabin scene… (llava, on-device — layered over MediaPipe).'}
+            </p>
+            {vision && (
+              <span style={{ ...label, textTransform: 'none', color: 'var(--text-tertiary)' }}>
+                llava · on-device · {new Date(vision.ts).toLocaleTimeString()}
+              </span>
+            )}
+          </div>
+
+          {/* Face-ID (on-device geometric recognition) */}
+          <div style={card}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <span style={{ ...label, display: 'flex', alignItems: 'center', gap: 6 }}><ScanFace size={12} /> Face-ID · on-device</span>
+              <button onClick={enrollCurrent} style={{ fontSize: 11, fontWeight: 700, padding: '5px 10px', borderRadius: 7, cursor: 'pointer', background: 'var(--accent-subtle)', color: 'var(--accent)', border: '1px solid var(--glass-border)' }}>
+                Enroll {driver?.name ?? 'driver'}
+              </button>
+            </div>
+            <div style={{ marginTop: 9, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {['haresh', 'priya', 'arjun', 'guest'].map((id) => {
+                const on = enrolled.includes(id);
+                return (
+                  <span key={id} style={{ fontSize: 10, fontWeight: 700, textTransform: 'capitalize', padding: '3px 9px', borderRadius: 999, background: on ? 'color-mix(in srgb, var(--success) 16%, transparent)' : 'var(--bg-tertiary)', color: on ? 'var(--success)' : 'var(--text-tertiary)', border: `1px solid ${on ? 'color-mix(in srgb, var(--success) 30%, transparent)' : 'var(--border)'}` }}>
+                    {on ? '● ' : '○ '}{id}
+                  </span>
+                );
+              })}
+            </div>
+            <span style={{ ...label, textTransform: 'none', color: 'var(--text-tertiary)', marginTop: 8, display: 'block' }}>
+              {enrollMsg ?? 'Look at the camera and enroll — recognition auto-loads the driver on sit-down.'}
+            </span>
           </div>
 
           {/* Risk factors — explainability */}

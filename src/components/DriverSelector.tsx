@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { User, Check } from 'lucide-react';
+import { CORE_HTTP } from '../config';
 
-const CORE = 'http://127.0.0.1:8765';
+const CORE = CORE_HTTP;
 
 type PersonaLite = {
   id: string;
@@ -100,9 +101,9 @@ export default function DriverSelector({ compact = false }: { compact?: boolean 
             key={d.id}
             onClick={() => select(d.id)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 10,
+              display: 'flex', alignItems: 'center', gap: 12, padding: '13px 15px', borderRadius: 14,
               cursor: 'pointer', textAlign: 'left', width: '100%',
-              background: active ? `color-mix(in srgb, ${d.accent} 12%, transparent)` : 'var(--bg-primary)',
+              background: active ? `color-mix(in srgb, ${d.accent} 12%, transparent)` : 'var(--bg-tertiary)',
               border: `1px solid ${active ? d.accent : 'var(--border)'}`,
             }}
           >

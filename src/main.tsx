@@ -8,6 +8,8 @@ import Home from './pages/Home'
 import LiveMonitor from './pages/LiveMonitor'
 import AutoCare from './pages/AutoCare'
 import Copilot from './pages/Copilot'
+import Agents from './pages/Agents'
+import DriverDNA from './pages/DriverDNA'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -18,7 +20,9 @@ createRoot(document.getElementById('root')!).render(
             <Route path="/" element={<Home />} />
             <Route path="/monitor" element={<LiveMonitor />} />
             <Route path="/autocare" element={<AutoCare />} />
+            <Route path="/agents" element={<Agents />} />
             <Route path="/copilot" element={<Copilot />} />
+            <Route path="/dna" element={<DriverDNA />} />
           </Route>
         </Routes>
       </BrowserRouter>

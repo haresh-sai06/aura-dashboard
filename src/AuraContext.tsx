@@ -80,6 +80,45 @@ export type CopilotAnswer = {
   driver?: string;
 };
 
+/** Predictive world-model forecast (forecast) — where the driver's state is heading. */
+export type Forecast = {
+  driver?: string;
+  score: number;
+  threshold: number;
+  trend: "rising" | "falling" | "stable" | string;
+  slopePerSec: number;
+  secondsToThreshold: number | null;
+  risk: "nominal" | "elevated" | "imminent" | string;
+  horizonText: string;
+};
+
+export type AgentAction = { type: string; detail: string };
+export type AgentNode = { id: string; label: string; group: string; status: string; note: string };
+
+/** A full multi-agent decision cycle (orchestration) — the agent-graph trace. */
+export type Orchestration = {
+  cycle: number;
+  trigger: string;
+  level: number;
+  levelName: string;
+  requestedLevel: number;
+  vetoed: boolean;
+  driver?: string;
+  score: number;
+  threshold: number;
+  forecast: Forecast;
+  decision: string;
+  actions: AgentAction[];
+  nodes: AgentNode[];
+  edges: [string, string][];
+};
+
+/** A proactive Wellness countermeasure the crew chose (countermeasure). */
+export type Countermeasure = { driver?: string; level: number | null; actions: AgentAction[]; source?: string };
+
+/** A vision-LLM description of a camera frame (vision.scene). */
+export type VisionScene = { description: string; kind: string; driver?: string; ts: number };
+
 type AuraValue = {
   connected: boolean;
   driver: Driver | null;
@@ -89,6 +128,10 @@ type AuraValue = {
   explain: Explain | null;
   reasoning: Reasoning | null;
   copilot: CopilotAnswer | null;
+  forecast: Forecast | null;
+  orchestration: Orchestration | null;
+  countermeasure: Countermeasure | null;
+  vision: VisionScene | null;
   events: AuraEvent[];
 };
 
@@ -101,6 +144,10 @@ const AuraCtx = createContext<AuraValue>({
   explain: null,
   reasoning: null,
   copilot: null,
+  forecast: null,
+  orchestration: null,
+  countermeasure: null,
+  vision: null,
   events: [],
 });
 
@@ -118,6 +165,10 @@ export function AuraProvider({ children }: { children: ReactNode }) {
   const [explain, setExplain] = useState<Explain | null>(null);
   const [reasoning, setReasoning] = useState<Reasoning | null>(null);
   const [copilot, setCopilot] = useState<CopilotAnswer | null>(null);
+  const [forecast, setForecast] = useState<Forecast | null>(null);
+  const [orchestration, setOrchestration] = useState<Orchestration | null>(null);
+  const [countermeasure, setCountermeasure] = useState<Countermeasure | null>(null);
+  const [vision, setVision] = useState<VisionScene | null>(null);
   const [events, setEvents] = useState<AuraEvent[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -159,7 +210,7 @@ export function AuraProvider({ children }: { children: ReactNode }) {
             playlist: String(msg.payload.playlist ?? "—"),
           };
           setDriver(d);
-          pushEvent("identified", `Welcome ${d.name}`);
+          pushEvent("identified", String(msg.payload.via) === "face-id" ? `Face-ID recognized ${d.name}` : `Welcome ${d.name}`);
           break;
         }
         case "driver.state":
@@ -200,6 +251,28 @@ export function AuraProvider({ children }: { children: ReactNode }) {
           });
           break;
         }
+        case "forecast":
+          setForecast(msg.payload as unknown as Forecast);
+          break;
+        case "orchestration":
+          setOrchestration(msg.payload as unknown as Orchestration);
+          break;
+        case "countermeasure": {
+          const cm = msg.payload as unknown as Countermeasure;
+          setCountermeasure(cm);
+          if (cm.actions?.length) pushEvent("countermeasure", cm.actions.map((a) => a.detail).join("; "));
+          break;
+        }
+        case "vision.scene": {
+          const pl = msg.payload as Record<string, unknown>;
+          setVision({
+            description: String(pl.description ?? ""),
+            kind: String(pl.kind ?? "cabin"),
+            driver: pl.driver as string,
+            ts: Date.now(),
+          });
+          break;
+        }
         case "safety.alert": {
           const a = msg.payload as unknown as SafetyAlert;
           setAlert(a);
@@ -223,7 +296,7 @@ export function AuraProvider({ children }: { children: ReactNode }) {
   }, [connect]);
 
   return (
-    <AuraCtx.Provider value={{ connected, driver, alert, live, telemetry, explain, reasoning, copilot, events }}>
+    <AuraCtx.Provider value={{ connected, driver, alert, live, telemetry, explain, reasoning, copilot, forecast, orchestration, countermeasure, vision, events }}>
       {children}
     </AuraCtx.Provider>
   );
