@@ -3,17 +3,6 @@ import { Shield, AlertTriangle, Car, Brain, ChevronRight, Eye, Volume2, VolumeX,
 import { useAura } from '../AuraContext';
 import { speak, setVoiceMuted, warmVoices } from '../utils/voice';
 
-/** What Aura says out loud at each escalation level (personalized to the driver). */
-function escalationLine(level: number, name?: string): string {
-  const who = name ? `${name}, ` : '';
-  switch (level) {
-    case 1: return `${who}I'm noticing early signs of fatigue. Consider taking a short break.`;
-    case 2: return `${who}fatigue confirmed. I'm easing off the speed and holding the lane. Please respond.`;
-    case 3: return `${who}you're not responding. Hazard lights on — I'm preparing to pull over.`;
-    case 4: return `Engaging a safe stop now. Pulling over.`;
-    default: return '';
-  }
-}
 import {
   AutocareProtocol as AutocareEngine,
   LEVEL_DESCRIPTIONS,
@@ -38,7 +27,7 @@ const LEVEL_ICONS: Record<InterventionLevel, typeof Shield> = {
 };
 
 export default function AutoCare() {
-  const { connected, live, reasoning, driver, forecast } = useAura();
+  const { connected, live, reasoning, forecast } = useAura();
   const liveRef = useRef(live);
   liveRef.current = live;
 
@@ -120,18 +109,10 @@ export default function AutoCare() {
     setSimScenario(pattern);
   };
 
-  // Aura speaks each escalation transition — the proactive co-pilot "voice" moment.
-  useEffect(() => {
-    const lvl = autocareState.level;
-    if (lvl !== prevLevel.current) {
-      if (lvl > prevLevel.current && lvl >= 1) {
-        speak(escalationLine(lvl, driver?.name), { rate: lvl >= 3 ? 1.03 : 0.98 });
-      } else if (lvl === 0 && prevLevel.current > 0) {
-        speak(`${driver?.name ? driver.name + ', ' : ''}you're alert again. Handing control back to you.`);
-      }
-      prevLevel.current = lvl;
-    }
-  }, [autocareState.level, driver]);
+  // Escalation voice DISABLED — the scripted lines ("early signs of fatigue…", "fatigue
+  // confirmed…") were repeating and talking over the natural voice. Only the natural
+  // conversational voice speaks now. We still track the level so nothing else is affected.
+  useEffect(() => { prevLevel.current = autocareState.level; }, [autocareState.level]);
 
   const levelColor = LEVEL_COLORS[autocareState.level];
   const LevelIcon = LEVEL_ICONS[autocareState.level];
