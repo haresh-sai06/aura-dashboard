@@ -119,6 +119,9 @@ export type Countermeasure = { driver?: string; level: number | null; actions: A
 /** A vision-LLM description of a camera frame (vision.scene). */
 export type VisionScene = { description: string; kind: string; driver?: string; ts: number };
 
+/** Commanded car speed + the shared limit (control.speed) — drives over-speed alerts everywhere. */
+export type ControlSpeed = { speedKmh: number; limitKmh: number; over: boolean; overByKmh: number; driver?: string; ts: number };
+
 /** Emergency escalation (eCall) status + per-contact delivery results. */
 export type ECallResult = { name?: string; phone?: string; channel?: string; ok?: boolean; error?: string; status?: string };
 export type ECall = {
@@ -144,6 +147,7 @@ type AuraValue = {
   countermeasure: Countermeasure | null;
   vision: VisionScene | null;
   ecall: ECall | null;
+  control: ControlSpeed | null;
   events: AuraEvent[];
 };
 
@@ -161,6 +165,7 @@ const AuraCtx = createContext<AuraValue>({
   countermeasure: null,
   vision: null,
   ecall: null,
+  control: null,
   events: [],
 });
 
@@ -183,6 +188,7 @@ export function AuraProvider({ children }: { children: ReactNode }) {
   const [countermeasure, setCountermeasure] = useState<Countermeasure | null>(null);
   const [vision, setVision] = useState<VisionScene | null>(null);
   const [ecall, setEcall] = useState<ECall | null>(null);
+  const [control, setControl] = useState<ControlSpeed | null>(null);
   const [events, setEvents] = useState<AuraEvent[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -300,6 +306,18 @@ export function AuraProvider({ children }: { children: ReactNode }) {
           if (pl.phase === "dispatched") pushEvent("ecall", pl.ok ? "Emergency alert sent" : "Emergency alert failed");
           break;
         }
+        case "control.speed": {
+          const pl = msg.payload as Record<string, unknown>;
+          setControl({
+            speedKmh: Number(pl.speedKmh ?? 0),
+            limitKmh: Number(pl.limitKmh ?? 50),
+            over: Boolean(pl.over),
+            overByKmh: Number(pl.overByKmh ?? 0),
+            driver: pl.driver as string,
+            ts: Date.now(),
+          });
+          break;
+        }
         case "safety.alert": {
           const a = msg.payload as unknown as SafetyAlert;
           setAlert(a);
@@ -323,7 +341,7 @@ export function AuraProvider({ children }: { children: ReactNode }) {
   }, [connect]);
 
   return (
-    <AuraCtx.Provider value={{ connected, driver, alert, live, telemetry, explain, reasoning, copilot, forecast, orchestration, countermeasure, vision, ecall, events }}>
+    <AuraCtx.Provider value={{ connected, driver, alert, live, telemetry, explain, reasoning, copilot, forecast, orchestration, countermeasure, vision, ecall, control, events }}>
       {children}
     </AuraCtx.Provider>
   );

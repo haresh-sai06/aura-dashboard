@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { Home, Activity, ShieldCheck, Bot, Workflow, Fingerprint, Siren } from 'lucide-react';
+import { Home, Activity, ShieldCheck, Bot, Workflow, Fingerprint, Siren, Gauge } from 'lucide-react';
 import { useAura } from '../AuraContext';
 import { AuraOrb } from '../ui';
 import { SURFACE } from '../config';
@@ -11,6 +11,7 @@ const HEAD_UNIT_NAV = [
   { to: '/', label: 'Home', icon: Home, end: true },
   { to: '/agents', label: 'Agents', icon: Workflow, end: false },
   { to: '/copilot', label: 'Aura Copilot', icon: Bot, end: false },
+  { to: '/drive', label: 'Drive Control', icon: Gauge, end: false },
   { to: '/emergency', label: 'Emergency', icon: Siren, end: false },
 ];
 

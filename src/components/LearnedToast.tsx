@@ -1,21 +1,19 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Sparkles } from 'lucide-react';
-import { CORE_HTTP, SURFACE } from '../config';
+import { SURFACE } from '../config';
 import { glass } from '../ui';
 
 /**
- * "Aura just learned…" — a live toast on the head unit (System A) that pops each time the
- * conversation captures a new durable fact about the driver, making the "it's learning right
- * now" moment obvious to anyone watching. It simply watches Core's /driver/knowledge for
- * newly-appeared facts (the same source the Driver DNA screen renders), so it fires no matter
- * where the driver talked — voice buddy, chat, anywhere — with zero backend plumbing.
+ * "Aura just learned…" — a live toast on the head unit (System A) that pops the instant a
+ * conversation turn captures a new durable fact about the driver, making the "it's learning
+ * right now" moment obvious to anyone watching.
  *
- * On first poll it primes its "seen" set silently (so the existing profile history never
- * spam-toasts), then toasts only facts that appear afterwards.
+ * Event-driven (deterministic + real-time): BuddyChat dispatches a window `aura:learned`
+ * CustomEvent whenever Core returns new facts, and this component renders them. No polling,
+ * so there's no prime/timing fragility.
  */
 
-type Fact = { text: string; category: string; ts?: string };
-type Profile = { id: string; name: string; facts: Fact[] };
+type LearnedFact = { text: string; category?: string };
 type Toast = { id: number; name: string; text: string; category: string };
 
 const CAT_ACCENT: Record<string, string> = {
@@ -25,40 +23,25 @@ const CAT_ACCENT: Record<string, string> = {
 
 export default function LearnedToast() {
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const seen = useRef<Set<string>>(new Set());
-  const primed = useRef(false);
   const nextId = useRef(1);
 
   useEffect(() => {
-    if (SURFACE !== 'a') return; // head unit only — the Driver DNA screen already shows System B
-    let alive = true;
-    const key = (name: string, f: Fact) => `${name}::${(f.text || '').toLowerCase()}`;
+    if (SURFACE !== 'a') return; // head unit only — the Driver DNA screen already lives on System B
 
-    const poll = async () => {
-      try {
-        const r = await fetch(`${CORE_HTTP}/driver/knowledge`);
-        const j = await r.json();
-        const profiles: Profile[] = Array.isArray(j.profiles) ? j.profiles : [];
-        const fresh: Toast[] = [];
-        for (const p of profiles) {
-          for (const f of p.facts ?? []) {
-            const k = key(p.name, f);
-            if (seen.current.has(k)) continue;
-            seen.current.add(k);
-            if (primed.current) fresh.push({ id: nextId.current++, name: p.name, text: f.text, category: (f.category || 'general').toLowerCase() });
-          }
-        }
-        primed.current = true;
-        if (alive && fresh.length) {
-          setToasts((t) => [...t, ...fresh].slice(-4));
-          fresh.forEach((ft) => setTimeout(() => setToasts((t) => t.filter((x) => x.id !== ft.id)), 5400));
-        }
-      } catch { /* Core offline — stay quiet */ }
+    const onLearned = (e: Event) => {
+      const detail = (e as CustomEvent).detail ?? {};
+      const name = String(detail.name || 'Driver');
+      const facts: LearnedFact[] = Array.isArray(detail.facts) ? detail.facts : [];
+      const fresh: Toast[] = facts
+        .filter((f) => f && f.text)
+        .map((f) => ({ id: nextId.current++, name, text: String(f.text), category: String(f.category || 'general').toLowerCase() }));
+      if (!fresh.length) return;
+      setToasts((t) => [...t, ...fresh].slice(-4));
+      fresh.forEach((ft) => setTimeout(() => setToasts((t) => t.filter((x) => x.id !== ft.id)), 5600));
     };
 
-    poll();
-    const iv = setInterval(poll, 1800);
-    return () => { alive = false; clearInterval(iv); };
+    window.addEventListener('aura:learned', onLearned as EventListener);
+    return () => window.removeEventListener('aura:learned', onLearned as EventListener);
   }, []);
 
   if (SURFACE !== 'a' || toasts.length === 0) return null;

@@ -48,7 +48,14 @@ export default function BuddyChat({ driverId, name, onDone }:
       const reply = data.reply || 'I’m with you.';
       setMessages((m) => { const n = [...m]; n[n.length - 1] = { role: 'aura', text: reply }; return n; });
       speak(reply, { rate: 0.98 });
-      if (Array.isArray(data.facts) && data.facts.length) setLearned((f) => [...f, ...data.facts]);
+      if (Array.isArray(data.facts) && data.facts.length) {
+        setLearned((f) => [...f, ...data.facts]);
+        // Announce each newly-learned fact so the head unit can pop a live "Aura just learned…"
+        // toast (see LearnedToast). Deterministic + real-time — no polling.
+        window.dispatchEvent(new CustomEvent('aura:learned', {
+          detail: { name: data.profile?.name || name || 'Driver', facts: data.facts },
+        }));
+      }
     } catch {
       setMessages((m) => { const n = [...m]; n[n.length - 1] = { role: 'aura', text: 'Aura Core is offline right now.' }; return n; });
     } finally {
